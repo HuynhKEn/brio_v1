@@ -402,19 +402,19 @@ def run(rank, args):
         mle_fn = label_smoothing_loss(ignore_index=tok.pad_token_id, epsilon=args.smooth)
     else:
         mle_fn = nn.CrossEntropyLoss(ignore_index=tok.pad_token_id)
-    #DEFAULT: s_optimizer = optim.Adam(model.parameters())
-    s_optimizer = Adafactor(	
-        model.parameters(),	
-        lr=1e-5,	
-        eps=(1e-30, 1e-3),	
-        clip_threshold=1.0,	
-        decay_rate=-0.8,	
-        beta1=None,	
-        weight_decay=0.01,	
-        relative_step=False,	
-        scale_parameter=False,	
-        warmup_init=False,	
-    )
+    s_optimizer = optim.Adam(model.parameters())
+    # s_optimizer = Adafactor(	
+    #     model.parameters(),	
+    #     lr=1e-5,	
+    #     eps=(1e-30, 1e-3),	
+    #     clip_threshold=1.0,	
+    #     decay_rate=-0.8,	
+    #     beta1=None,	
+    #     weight_decay=0.01,	
+    #     relative_step=False,	
+    #     scale_parameter=False,	
+    #     warmup_init=False,	
+    # )
     if is_master:
         recorder.write_config(args, [model], __file__)
     minimum_ranking_loss = 100
@@ -447,7 +447,10 @@ def run(rank, args):
                 to_cuda(batch, gpuid)
             step_cnt += 1
             # forward pass
-            output = model(batch["src_input_ids"], batch["candidate_ids"], args.normalize, args.score_mode, args.length_penalty, adding=args.adding)
+            #------------------------------CUSTOM-------------------------------------------#
+            output = model(batch["src_input_ids"], batch["stopwords_ids"], batch["candidate_ids"], args.normalize, args.score_mode, args.length_penalty, adding=args.adding)
+            #------------------------------CUSTOM-------------------------------------------#
+            #output = model(batch["src_input_ids"], batch["candidate_ids"], args.normalize, args.score_mode, args.length_penalty, adding=args.adding)
             similarity, gold_similarity = output['score'], output['summary_score']
             similarity = similarity * args.scale
             gold_similarity = gold_similarity * args.scale

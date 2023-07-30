@@ -48,20 +48,33 @@ class BRIO(nn.Module):
             self.model = MBartScorer.from_pretrained(mname)
         self.pad_token_id = pad_token_id
 
-    def forward(self, text_id, candidate_id, normalize=True, score_mode="base", length_penalty=1, require_gold=True, adding=0):
-        
+    #------------------------------CUSTOM-------------------------------------------#
+    def forward(self, text_id, stopword_ids, candidate_id, normalize=True, score_mode="base", length_penalty=1, require_gold=True, adding=0):
+    #------------------------------CUSTOM-------------------------------------------#
+    #def forward(self, text_id, candidate_id, normalize=True, score_mode="base", length_penalty=1, require_gold=True, adding=0):
         batch_size = text_id.size(0)
         
         input_mask = text_id != self.pad_token_id
         cand_mask = candidate_id != self.pad_token_id
         cand_mask[:, :, 0] = 1
+        #------------------------------CUSTOM-------------------------------------------#
         output = self.model(
             input_ids=text_id, 
+            stopword_ids = stopword_ids
             attention_mask=input_mask,
             decoder_input_ids=candidate_id, 
             decoder_attention_mask=cand_mask,
             output_hidden_states=True
             )
+        #------------------------------CUSTOM-------------------------------------------#
+        # output = self.model(
+        #     input_ids=text_id, 
+        #     attention_mask=input_mask,
+        #     decoder_input_ids=candidate_id, 
+        #     decoder_attention_mask=cand_mask,
+        #     output_hidden_states=True
+        #     )
+
         # print("model.py-output 1 shape: ",output.size())
         output = output[0]  # [bz x cand_num, seq_len, word_dim]
         # print("model.py-output 1 shape: ",output.size())

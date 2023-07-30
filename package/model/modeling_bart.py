@@ -1846,10 +1846,18 @@ class CustomBartModel(BartPretrainedModel):
             )
 
         if self.is_scoring_mode:
-            cand_num = decoder_input_ids.size(1)
+            # cand_num = decoder_input_ids.size(1)
+            # encoder_hidden_states = encoder_outputs[0]
+            # encoder_hidden_states = torch.repeat_interleave(encoder_hidden_states, cand_num, dim=0)
+            # attention_mask = torch.repeat_interleave(attention_mask, cand_num, dim=0)
+            # decoder_input_ids = decoder_input_ids.view(-1, decoder_input_ids.size(-1))
+            # decoder_attention_mask = decoder_attention_mask.view(-1, decoder_attention_mask.size(-1))
+
+            batch_size,cand_num,_ = decoder_input_ids.shape
             encoder_hidden_states = encoder_outputs[0]
-            encoder_hidden_states = torch.repeat_interleave(encoder_hidden_states, cand_num, dim=0)
-            attention_mask = torch.repeat_interleave(attention_mask, cand_num, dim=0)
+            expanded_return_idx = torch.arange(batch_size).view(-1,1).repeat(1,cand_num).view(-1).to(encoder_hidden_states.device)
+            encoder_hidden_states = encoder_hidden_states.index_select(0,expanded_return_idx)
+            attention_mask = attention_mask.index_select(0,expanded_return_idx)
             decoder_input_ids = decoder_input_ids.view(-1, decoder_input_ids.size(-1))
             decoder_attention_mask = decoder_attention_mask.view(-1, decoder_attention_mask.size(-1))
         else:

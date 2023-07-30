@@ -4,11 +4,13 @@ import torch
 from torch.utils.data import Dataset
 from transformers import BartTokenizer, PegasusTokenizer, AutoTokenizer
 
+
+stopwords = [line.strip() for line in open("./stop_word/vietnamese-stopwords-dash.txt", 'r')]
+
 def to_cuda(batch, gpuid):
     for n in batch:
         if n != "data":
             batch[n] = batch[n].to(gpuid)
-
 
 class BrioDataset(Dataset):
     def __init__(self, fdir, model_type, max_len=-1, is_test=False, total_len=512, is_sorted=True, max_num=-1, is_untok=True, is_pegasus=False, num=-1):
@@ -67,6 +69,16 @@ class BrioDataset(Dataset):
         src = self.tok.batch_encode_plus([src_txt], max_length=self.total_len, return_tensors="pt", pad_to_max_length=False, truncation=True)
         src_input_ids = src["input_ids"]
         src_input_ids = src_input_ids.squeeze(0)
+
+        #------------------------------CUSTOM-------------------------------------------#
+        decode_sentences = tokenizer.batch_decode(src_input_ids, skip_special_tokens=True)
+        # Tạo ma trận stopword_mask bằng cách kiểm tra từng từ trong câu
+        # xem có nằm trong stopwords_ids hay không
+        stopword_mask = torch.zeros(len(src_input_ids), dtype=torch.bool)
+        for i, sentence in enumerate(decode_sentences):
+            stopword_mask[i] = sentence.strip() in stopwords
+        #------------------------------CUSTOM-------------------------------------------#
+
         if self.is_untok:
             abstract = data["abstract_untok"]
         else:
@@ -93,6 +105,9 @@ class BrioDataset(Dataset):
         result = {
             "src_input_ids": src_input_ids, 
             "candidate_ids": candidate_ids,
+             #------------------------------CUSTOM-------------------------------------------#
+            "stopwords_ids": stopword_mask
+             #------------------------------CUSTOM-------------------------------------------#
             }
         if self.is_test:
             result["data"] = data
@@ -109,6 +124,9 @@ def collate_mp_brio(batch, pad_token_id, is_test=False):
         return result
 
     src_input_ids = pad([x["src_input_ids"] for x in batch])
+    #------------------------------CUSTOM-------------------------------------------#
+    stopwords_ids = pad([x["stopwords_ids"] for x in batch])
+    #------------------------------CUSTOM-------------------------------------------#
     candidate_ids = [x["candidate_ids"] for x in batch]
     max_len = max([max([len(c) for c in x]) for x in candidate_ids])
     candidate_ids = [pad(x, max_len) for x in candidate_ids]
@@ -118,7 +136,10 @@ def collate_mp_brio(batch, pad_token_id, is_test=False):
     result = {
         "src_input_ids": src_input_ids,
         "candidate_ids": candidate_ids,
-        }
+         #------------------------------CUSTOM-------------------------------------------#
+        "stopwords_ids": stopwords_ids
+         #------------------------------CUSTOM-------------------------------------------#
+    }
     if is_test:
         result["data"] = data
     return result

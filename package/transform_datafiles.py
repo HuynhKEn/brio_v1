@@ -91,8 +91,8 @@ def write_to_bin(dir_path, out_prefix):
 
       # Write article and abstract to files
       if article.strip() not in "":
-        source_file.write(article.replace("VOV.VN -", "").replace("- ", "").strip() + '\n')
-        target_file.write(abstract.replace("VOV.VN -", "").replace("- ", "").strip() + '\n')
+        source_file.write(article.replace("VOV.VN -", "").replace("- ", "").replace("vov . vn - ", "").replace("( vov ) ", "").replace("vov vn ", "").replace("browser not support iframe", "").strip() + '\n')
+        target_file.write(abstract.replace("VOV.VN -", "").replace("- ", "").replace("vov . vn - ", "").replace("( vov ) ", "").replace("vov vn ", "").replace("browser not support iframe", "").strip() + '\n')
 
   print("Finished writing files")
 

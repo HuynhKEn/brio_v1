@@ -13,18 +13,17 @@ if __name__ == '__main__':
 
     print("Call create token fnc")
 
-    def transform_data(type_document_local, is_target = False):
+    def transform_data(type_document_local, type_token = "source"):
         count = 1
         file_in = ""
         file_out = ""
 
-        path_tokenize_target = os.path.join(UtilsRoot.get_root_path(), 'package', 'cnndm', 'tokenized')
-        path_source_target = os.path.join(UtilsRoot.get_root_path(), 'package', 'cnndm', 'source_target')
+        path_tokenize_target = os.path.join(UtilsRoot.get_root_path(), 'package', 'cnndm', 'preprocess_final')
+        path_source_target = os.path.join(UtilsRoot.get_root_path(), 'package', 'cnndm', 'preprocess_final')
 
         print(path_tokenize_target, path_source_target)
-        if not is_target:
+        if  type_token == "source":
             if type_document_local == 'train':
-                print("Trains")
                 file_in = os.path.join(path_source_target, "train.source")
                 file_out = os.path.join(path_tokenize_target, "train.source.tokenized")
             elif type_document_local == 'val':
@@ -33,8 +32,7 @@ if __name__ == '__main__':
             elif type_document_local == 'test':
                 file_in = os.path.join(path_source_target, "test.source")
                 file_out = os.path.join(path_tokenize_target, "test.source.tokenized")
-        else:
-            print("Is target")
+        elif type_token == "target":
             if type_document_local == 'train':
                 file_in = os.path.join(path_source_target, "train.target")
                 file_out = os.path.join(path_tokenize_target, "train.target.tokenized")
@@ -44,6 +42,13 @@ if __name__ == '__main__':
             elif type_document_local == 'test':
                 file_in = os.path.join(path_source_target, "test.target")
                 file_out = os.path.join(path_tokenize_target, "test.target.tokenized")
+        elif type_token == "out":
+            if type_document_local == 'train':
+                file_in = os.path.join(path_source_target, "train.out")
+                file_out = os.path.join(path_tokenize_target, "train.out.tokenized")
+            elif type_document_local == 'val':
+                file_in = os.path.join(path_source_target, "val.out")
+                file_out = os.path.join(path_tokenize_target, "val.out.tokenized")
 
         f = open(file_out, "a",encoding="utf-8")
         
@@ -67,12 +72,12 @@ if __name__ == '__main__':
                 f.write(text + "\n")
 
 
-    data_types = ['train', 'test', 'val']
+    data_types = ['train', 'val', 'test']
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = []
         for data_type in data_types:
-            futures.append(executor.submit(transform_data, data_type, True))
+            futures.append(executor.submit(transform_data, data_type, "out"))
 
         # Wait for all tasks to complete
         concurrent.futures.wait(futures)

@@ -130,13 +130,16 @@ class MBartLearnedPositionalEmbedding(nn.Embedding):
         self.offset = 2
         super().__init__(num_embeddings + self.offset, embedding_dim)
 
-    def forward(self, input_ids: torch.Tensor, past_key_values_length: int = 0):
+    def forward(self, input_ids: torch.Tensor, stopword_ids: torch.Tensor,  past_key_values_length: int = 0):
         """`input_ids' shape is expected to be [bsz x seqlen]."""
 
         bsz, seq_len = input_ids.shape[:2]
         positions = torch.arange(
             past_key_values_length, past_key_values_length + seq_len, dtype=torch.long, device=self.weight.device
         ).expand(bsz, -1)
+
+        print("STOPWORD_ID", stopword_ids)
+        print("POSTION", positions)
 
         return super().forward(positions + self.offset)
 
@@ -693,9 +696,11 @@ class MBartEncoder(MBartPreTrainedModel):
         if self.supports_gradient_checkpointing and getattr(self.config, "gradient_checkpointing", False):
             self.gradient_checkpointing_enable()
 
+    #------------------------------CUSTOM-------------------------------------------#
     def forward(
         self,
         input_ids: torch.LongTensor = None,
+        stopword_ids: : torch.LongTensor = None,
         attention_mask: Optional[torch.Tensor] = None,
         head_mask: Optional[torch.Tensor] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
@@ -703,6 +708,17 @@ class MBartEncoder(MBartPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutput]:
+    #------------------------------CUSTOM-------------------------------------------#
+    # def forward(
+    #     self,
+    #     input_ids: torch.LongTensor = None,
+    #     attention_mask: Optional[torch.Tensor] = None,
+    #     head_mask: Optional[torch.Tensor] = None,
+    #     inputs_embeds: Optional[torch.FloatTensor] = None,
+    #     output_attentions: Optional[bool] = None,
+    #     output_hidden_states: Optional[bool] = None,
+    #     return_dict: Optional[bool] = None,
+    # ) -> Union[Tuple, BaseModelOutput]:
         r"""
         Args:
             input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
@@ -754,7 +770,10 @@ class MBartEncoder(MBartPreTrainedModel):
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids) * self.embed_scale
 
-        embed_pos = self.embed_positions(input)
+        #------------------------------CUSTOM-------------------------------------------#
+        embed_pos = self.embed_positions(input, stopword_ids)
+        #------------------------------CUSTOM-------------------------------------------#
+        #embed_pos = self.embed_positions(input)
 
         hidden_states = inputs_embeds + embed_pos
         hidden_states = self.layernorm_embedding(hidden_states)
@@ -881,9 +900,11 @@ class MBartDecoder(MBartPreTrainedModel):
 
         return combined_attention_mask
 
+    #------------------------------CUSTOM-------------------------------------------#
     def forward(
         self,
         input_ids: torch.LongTensor = None,
+        stopword_ids: : torch.LongTensor = None,
         attention_mask: Optional[torch.Tensor] = None,
         encoder_hidden_states: Optional[torch.FloatTensor] = None,
         encoder_attention_mask: Optional[torch.LongTensor] = None,
@@ -896,6 +917,23 @@ class MBartDecoder(MBartPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutputWithPastAndCrossAttentions]:
+    #------------------------------CUSTOM-------------------------------------------#
+    # def forward(
+    #     self,
+    #     input_ids: torch.LongTensor = None,
+    #     stopword_ids: : torch.LongTensor = None,
+    #     attention_mask: Optional[torch.Tensor] = None,
+    #     encoder_hidden_states: Optional[torch.FloatTensor] = None,
+    #     encoder_attention_mask: Optional[torch.LongTensor] = None,
+    #     head_mask: Optional[torch.Tensor] = None,
+    #     cross_attn_head_mask: Optional[torch.Tensor] = None,
+    #     past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
+    #     inputs_embeds: Optional[torch.FloatTensor] = None,
+    #     use_cache: Optional[bool] = None,
+    #     output_attentions: Optional[bool] = None,
+    #     output_hidden_states: Optional[bool] = None,
+    #     return_dict: Optional[bool] = None,
+    # ) -> Union[Tuple, BaseModelOutputWithPastAndCrossAttentions]:
         r"""
         Args:
             input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
@@ -985,7 +1023,10 @@ class MBartDecoder(MBartPreTrainedModel):
             encoder_attention_mask = _expand_mask(encoder_attention_mask, inputs_embeds.dtype, tgt_len=input_shape[-1])
 
         # embed positions
-        positions = self.embed_positions(input, past_key_values_length)
+        #------------------------------CUSTOM-------------------------------------------#
+        positions = self.embed_positions(input, stopword_ids, past_key_values_length)
+        #------------------------------CUSTOM-------------------------------------------#
+        #positions = self.embed_positions(input, past_key_values_length)
 
         hidden_states = inputs_embeds + positions
         hidden_states = self.layernorm_embedding(hidden_states)
@@ -1854,9 +1895,11 @@ class CustomMBartModel(MBartPreTrainedModel):
     def generation_mode(self):
         self.is_scoring_mode = False
 
+    #------------------------------CUSTOM-------------------------------------------#
     def forward(
         self,
         input_ids=None,
+        stopword_ids=None,
         attention_mask=None,
         decoder_input_ids=None,
         decoder_attention_mask=None,
@@ -1872,7 +1915,25 @@ class CustomMBartModel(MBartPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-
+    #------------------------------CUSTOM-------------------------------------------#
+    # def forward(
+    #     self,
+    #     input_ids=None,
+    #     attention_mask=None,
+    #     decoder_input_ids=None,
+    #     decoder_attention_mask=None,
+    #     head_mask=None,
+    #     decoder_head_mask=None,
+    #     cross_attn_head_mask=None,
+    #     encoder_outputs=None,
+    #     past_key_values=None,
+    #     inputs_embeds=None,
+    #     decoder_inputs_embeds=None,
+    #     use_cache=None,
+    #     output_attentions=None,
+    #     output_hidden_states=None,
+    #     return_dict=None,
+    # ):
         # different to other models, Bart automatically creates decoder_input_ids from
         # input_ids if no decoder_input_ids are provided
         if decoder_input_ids is None and decoder_inputs_embeds is None:
@@ -1888,8 +1949,10 @@ class CustomMBartModel(MBartPreTrainedModel):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         if encoder_outputs is None:
+            #------------------------------CUSTOM-------------------------------------------#
             encoder_outputs = self.encoder(
                 input_ids=input_ids,
+                stopword_ids=stopword_ids,
                 attention_mask=attention_mask,
                 head_mask=head_mask,
                 inputs_embeds=inputs_embeds,
@@ -1897,6 +1960,16 @@ class CustomMBartModel(MBartPreTrainedModel):
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
             )
+            #------------------------------CUSTOM-------------------------------------------#
+            # encoder_outputs = self.encoder(
+            #     input_ids=input_ids,
+            #     attention_mask=attention_mask,
+            #     head_mask=head_mask,
+            #     inputs_embeds=inputs_embeds,
+            #     output_attentions=output_attentions,
+            #     output_hidden_states=output_hidden_states,
+            #     return_dict=return_dict,
+            # )
         # If the user passed a tuple for encoder_outputs, we wrap it in a BaseModelOutput when return_dict=True
         elif return_dict and not isinstance(encoder_outputs, BaseModelOutput):
             encoder_outputs = BaseModelOutput(
@@ -1906,17 +1979,26 @@ class CustomMBartModel(MBartPreTrainedModel):
             )
 
         if self.is_scoring_mode:
-            cand_num = decoder_input_ids.size(1)
+            # cand_num = decoder_input_ids.size(1)
+            # encoder_hidden_states = encoder_outputs[0]
+            # encoder_hidden_states = torch.repeat_interleave(encoder_hidden_states, cand_num, dim=0)
+            # attention_mask = torch.repeat_interleave(attention_mask, cand_num, dim=0)
+            # decoder_input_ids = decoder_input_ids.view(-1, decoder_input_ids.size(-1))
+            # decoder_attention_mask = decoder_attention_mask.view(-1, decoder_attention_mask.size(-1))
+            batch_size,cand_num,_ = decoder_input_ids.shape
             encoder_hidden_states = encoder_outputs[0]
-            encoder_hidden_states = torch.repeat_interleave(encoder_hidden_states, cand_num, dim=0)
-            attention_mask = torch.repeat_interleave(attention_mask, cand_num, dim=0)
+            expanded_return_idx = torch.arange(batch_size).view(-1,1).repeat(1,cand_num).view(-1).to(encoder_hidden_states.device)
+            encoder_hidden_states = encoder_hidden_states.index_select(0,expanded_return_idx)
+            attention_mask = attention_mask.index_select(0,expanded_return_idx)
             decoder_input_ids = decoder_input_ids.view(-1, decoder_input_ids.size(-1))
             decoder_attention_mask = decoder_attention_mask.view(-1, decoder_attention_mask.size(-1))
         else:
             encoder_hidden_states = encoder_outputs[0]
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
+        #------------------------------CUSTOM-------------------------------------------#
         decoder_outputs = self.decoder(
             input_ids=decoder_input_ids,
+            stopword_ids=stopword_ids,
             attention_mask=decoder_attention_mask,
             encoder_hidden_states=encoder_hidden_states,
             encoder_attention_mask=attention_mask,
@@ -1929,6 +2011,21 @@ class CustomMBartModel(MBartPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
+        #------------------------------CUSTOM-------------------------------------------#
+        # decoder_outputs = self.decoder(
+        #     input_ids=decoder_input_ids,
+        #     attention_mask=decoder_attention_mask,
+        #     encoder_hidden_states=encoder_hidden_states,
+        #     encoder_attention_mask=attention_mask,
+        #     head_mask=decoder_head_mask,
+        #     cross_attn_head_mask=cross_attn_head_mask,
+        #     past_key_values=past_key_values,
+        #     inputs_embeds=decoder_inputs_embeds,
+        #     use_cache=use_cache,
+        #     output_attentions=output_attentions,
+        #     output_hidden_states=output_hidden_states,
+        #     return_dict=return_dict,
+        # )
 
         if not return_dict:
             return decoder_outputs + encoder_outputs
@@ -1981,10 +2078,11 @@ class MBartScorer(MBartPreTrainedModel):
 
     def set_output_embeddings(self, new_embeddings):
         self.lm_head = new_embeddings
-
+    #------------------------------CUSTOM-------------------------------------------#
     def forward(
         self,
         input_ids=None,
+        stopword_ids=None,
         attention_mask=None,
         decoder_input_ids=None,
         decoder_attention_mask=None,
@@ -2001,6 +2099,26 @@ class MBartScorer(MBartPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
+    #------------------------------CUSTOM-------------------------------------------#
+    # def forward(
+    #     self,
+    #     input_ids=None,
+    #     attention_mask=None,
+    #     decoder_input_ids=None,
+    #     decoder_attention_mask=None,
+    #     head_mask=None,
+    #     decoder_head_mask=None,
+    #     cross_attn_head_mask=None,
+    #     encoder_outputs=None,
+    #     past_key_values=None,
+    #     inputs_embeds=None,
+    #     decoder_inputs_embeds=None,
+    #     labels=None,
+    #     use_cache=None,
+    #     output_attentions=None,
+    #     output_hidden_states=None,
+    #     return_dict=None,
+    # ):
         r"""
         labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
             Labels for computing the masked language modeling loss. Indices should either be in ``[0, ...,
@@ -2019,6 +2137,7 @@ class MBartScorer(MBartPreTrainedModel):
 
         outputs = self.model(
             input_ids,
+            stopword_ids=stopword_ids
             attention_mask=attention_mask,
             decoder_input_ids=decoder_input_ids,
             encoder_outputs=encoder_outputs,
