@@ -4,9 +4,6 @@ import torch
 from torch.utils.data import Dataset
 from transformers import BartTokenizer, PegasusTokenizer, AutoTokenizer
 
-
-stopwords = [line.strip() for line in open("./stop_word/vietnamese-stopwords-dash.txt", 'r')]
-
 def to_cuda(batch, gpuid):
     for n in batch:
         if n != "data":
@@ -16,7 +13,6 @@ class BrioDataset(Dataset):
     def __init__(self, fdir, model_type, max_len=-1, is_test=False, total_len=512, is_sorted=True, max_num=-1, is_untok=True, is_pegasus=False, num=-1):
         """ data format: article, abstract, [(candidiate_i, score_i)] """
         self.isdir = os.path.isdir(fdir)
-        
         if self.isdir:
             self.fdir = fdir
             if num > 0:
@@ -47,20 +43,25 @@ class BrioDataset(Dataset):
         return self.num
 
     def __getitem__(self, idx):
-        if self.isdir:
-            # with open(os.path.join(self.fdir, "%d.json"%idx), "r") as f:
-            #     data = json.load(f)
-            with open(os.path.join(self.fdir, "%d.json"%idx), "r", encoding="latin-1") as f:
-                print(os.path.join(self.fdir, "%d.json"%idx))
-                try:
+        try:
+            if self.isdir:
+                # with open(os.path.join(self.fdir, "%d.json"%idx), "r") as f:
+                #     data = json.load(f)
+                with open(os.path.join(self.fdir, "%d.json"%idx), "r", encoding="latin-1") as f:
+                    # print(os.path.join(self.fdir, "%d.json"%idx))
+                    try:
+                        data = json.load(f)
+                    except Exception as e:
+                        print("BRIO INDEX: ", idx)	
+                        print("BRIO GET ITEM: ", e)
+
+            else:
+                with open(self.files[idx]) as f:
                     data = json.load(f)
-                except Exception as e:
-                    print("BRIO INDEX: ", idx)	
-                    print("BRIO GET ITEM: ", e)
-                
-        else:
-            with open(self.files[idx]) as f:
+        except:
+            with open("./default/0.json", "r", encoding="latin-1") as f:
                 data = json.load(f)
+        
         if self.is_untok:
             article = data["article_untok"]
         else:
@@ -69,16 +70,6 @@ class BrioDataset(Dataset):
         src = self.tok.batch_encode_plus([src_txt], max_length=self.total_len, return_tensors="pt", pad_to_max_length=False, truncation=True)
         src_input_ids = src["input_ids"]
         src_input_ids = src_input_ids.squeeze(0)
-
-        #------------------------------CUSTOM-------------------------------------------#
-        decode_sentences = tokenizer.batch_decode(src_input_ids, skip_special_tokens=True)
-        # Tạo ma trận stopword_mask bằng cách kiểm tra từng từ trong câu
-        # xem có nằm trong stopwords_ids hay không
-        stopword_mask = torch.zeros(len(src_input_ids), dtype=torch.bool)
-        for i, sentence in enumerate(decode_sentences):
-            stopword_mask[i] = sentence.strip() in stopwords
-        #------------------------------CUSTOM-------------------------------------------#
-
         if self.is_untok:
             abstract = data["abstract_untok"]
         else:
@@ -105,9 +96,6 @@ class BrioDataset(Dataset):
         result = {
             "src_input_ids": src_input_ids, 
             "candidate_ids": candidate_ids,
-             #------------------------------CUSTOM-------------------------------------------#
-            "stopwords_ids": stopword_mask
-             #------------------------------CUSTOM-------------------------------------------#
             }
         if self.is_test:
             result["data"] = data
@@ -124,9 +112,6 @@ def collate_mp_brio(batch, pad_token_id, is_test=False):
         return result
 
     src_input_ids = pad([x["src_input_ids"] for x in batch])
-    #------------------------------CUSTOM-------------------------------------------#
-    stopwords_ids = pad([x["stopwords_ids"] for x in batch])
-    #------------------------------CUSTOM-------------------------------------------#
     candidate_ids = [x["candidate_ids"] for x in batch]
     max_len = max([max([len(c) for c in x]) for x in candidate_ids])
     candidate_ids = [pad(x, max_len) for x in candidate_ids]
@@ -136,10 +121,7 @@ def collate_mp_brio(batch, pad_token_id, is_test=False):
     result = {
         "src_input_ids": src_input_ids,
         "candidate_ids": candidate_ids,
-         #------------------------------CUSTOM-------------------------------------------#
-        "stopwords_ids": stopwords_ids
-         #------------------------------CUSTOM-------------------------------------------#
-    }
+        }
     if is_test:
         result["data"] = data
     return result

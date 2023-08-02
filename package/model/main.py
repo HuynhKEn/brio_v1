@@ -31,7 +31,7 @@ logging.getLogger("transformers.tokenization_utils_fast").setLevel(logging.ERROR
 
 
 def base_setting(args):
-    args.epoch = getattr(args, 'epoch', 1) 
+    args.epoch = getattr(args, 'epoch', 5) 
     args.seed = getattr(args, "seed", 970903) # random seed
     args.dataset = getattr(args, "dataset", "cnndm") # dataset
     args.smooth = getattr(args, "smooth", 0.06) # label smoothing
@@ -43,18 +43,18 @@ def base_setting(args):
     args.warmup_steps = getattr(args, "warmup_steps", 20000) # warmup steps
     args.adding = getattr(args, "adding", 0) # used for numerical stability
     args.max_lr = getattr(args, "max_lr", 2e-3) # max learning rate (* 1e-2)
-    args.pretrained = getattr(args, "pretrained", 'bart_pho2/bartpho2') # pretrained model path
+    args.pretrained = getattr(args, "pretrained", './bart_pho2') # pretrained model path
     args.length_penalty = getattr(args, "length_penalty", 2.0) # length penalty
     args.no_gold = getattr(args, "no_gold", False) # whether to use gold summaries
     args.max_num = getattr(args, "max_num", 6) # max number of candidate summaries
     args.eval_interval = getattr(args, "eval_interval", 1000) # evaluation intervals
     args.num_beams = getattr(args, "num_beams", 4) # number of beams for beam search
-    args.batch_size = getattr(args, 'batch_size', 24) # batch size on one gpu, one step
-    args.total_len = getattr(args, "total_len", 512) # total length of source article
+    args.batch_size = getattr(args, 'batch_size', 8) # batch size on one gpu, one step
+    args.total_len = getattr(args, "total_len", 1024) # total length of source article
     args.normalize = getattr(args, "normalize", True) # normalize predicited likelihood
     args.model_type = getattr(args, "model_type", "vinai/bartpho-word-base") # model type
     args.gen_min_len = getattr(args, "gen_min_len", 55) # min length of generated summaries
-    args.accumulate_step = getattr(args, "accumulate_step", 24) # accumulate gradients steps
+    args.accumulate_step = getattr(args, "accumulate_step", 8) # accumulate gradients steps
     args.mle_weight = getattr(args, "mle_weight", 0.1) # weight for mle loss on gold summaries
     args.gen_max_len = getattr(args, "gen_max_len", 140) # max length of generated summaries
     args.score_mode = getattr(args, "score_mode", "log") # use log-likelihood for ranking loss
@@ -217,6 +217,7 @@ def evaluation(args):
 
 def test(dataloader, gen_dataloader, model, args, tok, gpuid, do_sample=False):
     model.eval()
+    
     if args.cuda:
         device = f"cuda:{gpuid}"
     else:
@@ -292,16 +293,23 @@ def test(dataloader, gen_dataloader, model, args, tok, gpuid, do_sample=False):
                 samples = batch["data"]
                 slines = [" ".join(x["article_untok"]) for x in samples]
                 dct = tok.batch_encode_plus(slines, max_length=args.total_len, return_tensors="pt", pad_to_max_length=True, truncation=True)
-                summaries = _model.generate(
-                    input_ids=dct["input_ids"].to(device),
-                    attention_mask=dct["attention_mask"].to(device),
-                    max_length=args.gen_max_len + 2,  # +2 from original because we start at step=1 and stop before max_length
-                    min_length=args.gen_min_len + 1,  # +1 from original because we start at step=1
-                    no_repeat_ngram_size=3,
-                    num_beams=args.num_beams,
-                    length_penalty=args.length_penalty,
-                    early_stopping=True,
-                )
+                try:
+                    summaries = _model.generate(
+                        input_ids=dct["input_ids"].to(device),
+                        attention_mask=dct["attention_mask"].to(device),
+                        max_length=args.gen_max_len + 2,  # +2 from original because we start at step=1 and stop before max_length
+                        min_length=args.gen_min_len + 1,  # +1 from original because we start at step=1
+                        no_repeat_ngram_size=3,
+                        num_beam_groups=4,
+                        num_return_sequences=4,
+                        num_beams=args.num_beams,
+                        length_penalty=args.length_penalty,
+                        early_stopping=True,
+                    )
+                except:
+                    continue
+                    print("continute")
+
                 dec = [tok.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=False) for g in summaries]
                 for (hypothesis, x) in zip(dec, samples):
                     hypothesis = hypothesis.replace("\n", " ")
@@ -328,6 +336,7 @@ def test(dataloader, gen_dataloader, model, args, tok, gpuid, do_sample=False):
             dist.all_reduce(sample_rougeLsum, op=dist.reduce_op.SUM)
             sample_rougeLsum = sample_rougeLsum.item() / len(args.gpuid)
     model.train()
+    
     return {
         "rouge1": rouge1,
         "rouge2": rouge2,
@@ -358,7 +367,6 @@ def run(rank, args):
     if is_master:
         id = len(os.listdir("./cache"))
         recorder = Recorder(id, args.log)
-        print(id)
     # build dataloader
     if args.is_pegasus:
         tok = PegasusTokenizer.from_pretrained(args.model_type)
@@ -367,7 +375,7 @@ def run(rank, args):
     collate_fn = partial(collate_mp_brio, pad_token_id=tok.pad_token_id, is_test=False)
     collate_fn_val = partial(collate_mp_brio, pad_token_id=tok.pad_token_id, is_test=True)
     train_set = BrioDataset(f"./{args.dataset}/{args.datatype}/train", args.model_type, max_len=args.max_len, max_num=args.max_num, total_len=args.total_len, is_pegasus=args.is_pegasus)
-    val_set = BrioDataset(f"./{args.dataset}/{args.datatype}/val", args.model_type, is_test=True, max_len=512, is_sorted=False, max_num=args.max_num, total_len=args.total_len, is_pegasus=args.is_pegasus)
+    val_set = BrioDataset(f"./{args.dataset}/{args.datatype}/val", args.model_type, is_test=True, max_len=1024, is_sorted=False, max_num=args.max_num, total_len=args.total_len, is_pegasus=args.is_pegasus)
     if is_mp:
         train_sampler = torch.utils.data.distributed.DistributedSampler(
     	 train_set, num_replicas=world_size, rank=rank, shuffle=True)
@@ -377,9 +385,9 @@ def run(rank, args):
         val_dataloader = DataLoader(val_set, batch_size=1, shuffle=False, num_workers=4, collate_fn=collate_fn_val, sampler=val_sampler)
         val_gen_dataloader = DataLoader(val_set, batch_size=8, shuffle=False, num_workers=4, collate_fn=collate_fn_val, sampler=val_sampler)
     else:
-        dataloader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True, num_workers=4, collate_fn=collate_fn)
-        val_dataloader = DataLoader(val_set, batch_size=1, shuffle=True, num_workers=4, collate_fn=collate_fn_val)
-        val_gen_dataloader = DataLoader(val_set, batch_size=8, shuffle=True, num_workers=4, collate_fn=collate_fn_val)
+        dataloader = DataLoader(train_set, batch_size=args.batch_size, shuffle=False, num_workers=4, collate_fn=collate_fn)
+        val_dataloader = DataLoader(val_set, batch_size=1, shuffle=False, num_workers=4, collate_fn=collate_fn_val)
+        val_gen_dataloader = DataLoader(val_set, batch_size=8, shuffle=False, num_workers=4, collate_fn=collate_fn_val)
     # build models
     model_path = args.pretrained if args.pretrained is not None else args.model_type
     model = BRIO(model_path, tok.pad_token_id, is_pegasus=args.is_pegasus)
@@ -402,19 +410,21 @@ def run(rank, args):
         mle_fn = label_smoothing_loss(ignore_index=tok.pad_token_id, epsilon=args.smooth)
     else:
         mle_fn = nn.CrossEntropyLoss(ignore_index=tok.pad_token_id)
-    s_optimizer = optim.Adam(model.parameters())
-    # s_optimizer = Adafactor(	
-    #     model.parameters(),	
-    #     lr=1e-5,	
-    #     eps=(1e-30, 1e-3),	
-    #     clip_threshold=1.0,	
-    #     decay_rate=-0.8,	
-    #     beta1=None,	
-    #     weight_decay=0.01,	
-    #     relative_step=False,	
-    #     scale_parameter=False,	
-    #     warmup_init=False,	
-    # )
+    #DEFAULT: s_optimizer = optim.Adam(model.parameters())
+    
+    s_optimizer = Adafactor(	
+        model.parameters(),	
+        lr=1e-5,	
+        eps=(1e-30, 1e-3),	
+        clip_threshold=1.0,	
+        decay_rate=-0.8,	
+        beta1=None,	
+        weight_decay=0.01,	
+        relative_step=False,	
+        scale_parameter=False,	
+        warmup_init=False,	
+    )
+
     if is_master:
         recorder.write_config(args, [model], __file__)
     minimum_ranking_loss = 100
@@ -442,15 +452,13 @@ def run(rank, args):
         step_cnt = 0
         epoch_step = 0
         avg_loss = 0
+
         for (i, batch) in enumerate(dataloader):
             if args.cuda:
                 to_cuda(batch, gpuid)
             step_cnt += 1
             # forward pass
-            #------------------------------CUSTOM-------------------------------------------#
-            output = model(batch["src_input_ids"], batch["stopwords_ids"], batch["candidate_ids"], args.normalize, args.score_mode, args.length_penalty, adding=args.adding)
-            #------------------------------CUSTOM-------------------------------------------#
-            #output = model(batch["src_input_ids"], batch["candidate_ids"], args.normalize, args.score_mode, args.length_penalty, adding=args.adding)
+            output = model(batch["src_input_ids"], batch["candidate_ids"], args.normalize, args.score_mode, args.length_penalty, adding=args.adding)
             similarity, gold_similarity = output['score'], output['summary_score']
             similarity = similarity * args.scale
             gold_similarity = gold_similarity * args.scale
@@ -465,6 +473,7 @@ def run(rank, args):
             avg_mle_loss += mle_loss.item() / args.accumulate_step
             avg_ranking_loss += ranking_loss.item() / args.accumulate_step
             loss.backward()
+
             if step_cnt == args.accumulate_step:
                 # updating
                 if args.grad_norm > 0:
@@ -479,6 +488,7 @@ def run(rank, args):
                     param_group['lr'] = lr
                 s_optimizer.step()
                 s_optimizer.zero_grad()
+            
             if epoch_step % args.report_freq == 0 and step_cnt == 0 and is_master:
                 # report stats
                 print("id: %d"%id)
@@ -493,8 +503,12 @@ def run(rank, args):
                 recorder.plot("ranking_loss", {"loss": avg_ranking_loss / args.report_freq}, all_step_cnt)
                 recorder.print()
                 avg_mle_loss, avg_ranking_loss, avg_loss = 0, 0, 0
+            
             del similarity, gold_similarity, loss, mle_loss, ranking_loss, output, probs
-            print(all_step_cnt)
+
+            if all_step_cnt % 100 == 0:
+                print(all_step_cnt)
+
             if all_step_cnt % args.eval_interval == 0 and all_step_cnt != 0 and step_cnt == 0:
                 # evaluate the model as a scorer
                 result = test(val_dataloader, val_gen_dataloader, model, args, tok, gpuid, args.do_sample)

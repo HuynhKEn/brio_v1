@@ -141,6 +141,8 @@ class Preprocess:
                 dst = os.path.join(output_dir, file_to_copy)
                 shutil.copy(src, dst)
 
+    def radom_get_num_file(self, src, des ,number):
+        random_get_files.get_number_radom_file(src, des ,number)
 
     def create_source_target(self, type_document, isAll=True, isSplit=False, idx_is_split=1):
         """

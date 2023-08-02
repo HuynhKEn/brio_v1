@@ -30,6 +30,25 @@ def get_random_files(source_dir,  destination_dir, num_files, train_ratio, val_r
 
         shutil.copy(source_path, destination_dir_copy)
 
+def get_number_radom_file(source_directory, destination_directory, number_file):
+    # Ensure the destination directory exists, if not, create it
+    os.makedirs(destination_directory, exist_ok=True)
+
+    # Get a list of all files in the source directory
+    all_files = os.listdir(source_directory)
+
+    # Shuffle the list of files to randomly select 70,000 files
+    random.shuffle(all_files)
+    selected_files = all_files[:number_file]
+
+    # Copy the selected files to the destination directory
+    for file_name in selected_files:
+        source_file_path = os.path.join(source_directory, file_name)
+        destination_file_path = os.path.join(destination_directory, file_name)
+        shutil.copy2(source_file_path, destination_file_path)
+
+    print("Successfully copied 70,000 files to the destination directory.")
+
 
 def run(src_dir, des_path_dir, number_random, train_ratio, val_ratio):
     # Đường dẫn tới thư mục nguồn
