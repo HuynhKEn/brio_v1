@@ -102,7 +102,6 @@ def check_num_stories(stories_dir, num_expected):
   if num_stories != num_expected:
     raise Exception("stories directory %s contains %i files but should contain %i" % (stories_dir, num_stories, num_expected))
 
-
 def run(type_document, source_dir = "", des_src = ""):
   """
     This function split total raw data to train, val, test
@@ -115,3 +114,5 @@ def run(type_document, source_dir = "", des_src = ""):
     os.makedirs(des_src)
   print("start create bin:", type_document)
   write_to_bin(source_dir, os.path.join(des_src, type_document))
+
+#run("val", r"C:\Users\Admin\Desktop\brio_v1\source\val_testing", r"C:\Users\Admin\Desktop\brio_v1\source")

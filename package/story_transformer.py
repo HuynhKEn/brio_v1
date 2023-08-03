@@ -3,7 +3,7 @@ import re
 import csv
 import glob
 import string
-from pyvi import ViTokenizer, ViPosTagger
+# from pyvi import ViTokenizer, ViPosTagger
 # https://realpython.com/python-encodings-guide/
 # List các ký tự hợp lệ trong tiếng Việt
 whitespace = ' '
@@ -23,6 +23,12 @@ def _check_tieng_viet(seq):
   else:
     return False
 
+def unicodeToAscii(s):
+  return ''.join(
+      c for c in unicodedata.normalize('NFD', s)
+      if unicodedata.category(c) != 'Mn'
+  )
+
 def extract_content4(directory, out_dir):
     file_paths = glob.glob(os.path.join(directory, '*'))
     for file_path in file_paths:
@@ -34,8 +40,7 @@ def extract_content4(directory, out_dir):
             lines = infile.read()
             contents = lines.strip().split('<<space>>')
             if len(contents) >= 4:
-                outfile.write(clean_document(contents[3]) + '\n@highlight\n' +  clean_document(contents[2]) + '\n')
-
+                outfile.write(contents[3] + '\n@highlight\n' +  contents[2] + '\n')
 
 def extract_csv(directory, out_file_csv):
     file_paths = glob.glob(os.path.join(directory, '*'))
@@ -52,18 +57,30 @@ def extract_csv(directory, out_file_csv):
               if len(contents) >= 4:
                   writer.writerow((clean_document(contents[3]), clean_document(contents[2])))
 
+def normalizeString(s):
+    # Loại trừ email khỏi việc tách dấu câu
+    email_pattern = r'(\S+@\S+\.\S+)'
+    email_matches = re.findall(email_pattern, s)
+    s = re.sub(email_pattern, r"__EMAIL__", s)
+    
+    # Tách dấu câu nếu kí tự liền nhau
+    marks = '[.!?,-${}()]'
+    r = "(["+"\\".join(marks)+"])"
+    s = re.sub(r, r" \1 ", s)
+    
+    # Thay thế nhiều spaces bằng 1 space
+    s = re.sub(r"\s+", r" ", s).strip()
+
+    for email in email_matches:
+        s = s.replace("__EMAIL__", email, 1)
+    return s
 
 def clean_document(content):
-    contents_parsed = content.lower()
+    contents_parsed = content
     contents_parsed = contents_parsed.replace('\n', '. ').replace("browser not support iframe ", "").replace("\xa0", "")
     contents_parsed = contents_parsed.strip()
-    doc = ViTokenizer.tokenize(contents_parsed) #Pyvi Vitokenizer library
-    doc = doc.lower() #Lower
-    tokens = doc.split() #Split in_to words
-    table = str.maketrans('', '', string.punctuation.replace("_", "")) #Remove all punctuation
-    tokens = [w.translate(table) for w in tokens]
-    tokens = [word for word in tokens if word]
-    return " ".join(tokens)
+    contents_parsed = re.sub(r"\s+", r" ", contents_parsed).strip()
+    return contents_parsed
 
 def count_rows_in_csv(file_path):
   import pandas as pd

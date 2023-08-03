@@ -1,6 +1,10 @@
 package/__pycache__
+package/model/__pycache__
 .cnndm.zip
-package/cnndm/*
+package/cnndm/diverse
+package/model/bartpho2
 package/source/*
 package.egg-info
 package/model/compare-mt
+source/*
+package/model/cache/*

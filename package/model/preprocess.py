@@ -17,8 +17,8 @@ def collect_diverse_beam_data(args):
     cands = []
     cands_untok = []
     cnt = 0
-    with open(os.path.join(src_dir, f"{split}.source.tokenized"),encoding="latin-1") as src, open(os.path.join(src_dir, f"{split}.target.tokenized"),encoding="latin-1") as tgt, open(os.path.join(src_dir, f"{split}.source"),encoding="latin-1") as src_untok, open(os.path.join(src_dir, f"{split}.target"),encoding="latin-1") as tgt_untok:
-        with open(os.path.join(src_dir, f"{split}.out.tokenized"),encoding="latin-1") as f_1, open(os.path.join(src_dir, f"{split}.out"),encoding="latin-1") as f_2:
+    with open(os.path.join(src_dir, f"{split}.source.tokenized"),encoding="utf-8") as src, open(os.path.join(src_dir, f"{split}.target.tokenized"),encoding="utf-8") as tgt, open(os.path.join(src_dir, f"{split}.source"),encoding="utf-8") as src_untok, open(os.path.join(src_dir, f"{split}.target"),encoding="utf-8") as tgt_untok:
+        with open(os.path.join(src_dir, f"{split}.out.tokenized"),encoding="utf-8") as f_1, open(os.path.join(src_dir, f"{split}.out"),encoding="utf-8") as f_2:
             for (x, y) in zip(f_1, f_2):
                 x = x.strip()
                 if args.lower:
@@ -80,12 +80,12 @@ def build_diverse_beam(input):
         "abstract_untok": abstract_untok,
         "candidates_untok": candidates_untok,
         }
-    with open(tgt_dir, "w",encoding="latin-1") as f:
+    with open(tgt_dir, "w",encoding="utf-8") as f:
         json.dump(output, f,ensure_ascii=False )
 
 
 def make_diverse_beam_data(args):
-    with open(os.path.join(args.src_dir, f"{args.split}.source"),encoding="latin-1") as f:
+    with open(os.path.join(args.src_dir, f"{args.split}.source"),encoding="utf-8") as f:
         num = sum(1 for _ in f)
     data = collect_diverse_beam_data(args)
     with Pool(processes=8) as pool:

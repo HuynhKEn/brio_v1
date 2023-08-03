@@ -47,19 +47,18 @@ class BrioDataset(Dataset):
             if self.isdir:
                 # with open(os.path.join(self.fdir, "%d.json"%idx), "r") as f:
                 #     data = json.load(f)
-                with open(os.path.join(self.fdir, "%d.json"%idx), "r", encoding="latin-1") as f:
+                with open(os.path.join(self.fdir, "%d.json"%idx), "r", encoding="utf-8") as f:
                     # print(os.path.join(self.fdir, "%d.json"%idx))
                     try:
                         data = json.load(f)
                     except Exception as e:
                         print("BRIO INDEX: ", idx)	
                         print("BRIO GET ITEM: ", e)
-
             else:
                 with open(self.files[idx]) as f:
                     data = json.load(f)
         except:
-            with open("./default/0.json", "r", encoding="latin-1") as f:
+            with open("./default/0.json", "r", encoding="utf-8") as f:
                 data = json.load(f)
         
         if self.is_untok:

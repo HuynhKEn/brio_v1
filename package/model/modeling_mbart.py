@@ -1950,10 +1950,10 @@ class MBartScorer(MBartPreTrainedModel):
     _keys_to_ignore_on_load_missing = [r"final_logits_bias", r"lm_head\.weight"]
 
     def __init__(self, config: MBartConfig):
-        config['encoder_layers'] = 4
-        config['decoder_layers '] = 4
-        config['encoder_attention_heads'] = 8 
-        config['decoder_attention_heads '] = 8 
+        # config.__dict__.['encoder_layers'] = 2
+        # config.__dict__.['decoder_layers '] = 2
+        # config.__dict__.['encoder_attention_heads'] = 4 
+        # config.__dict__.['decoder_attention_heads '] = 4 
 
         super().__init__(config)
         self.model = CustomMBartModel(config)
