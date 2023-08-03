@@ -29,34 +29,25 @@ logging.getLogger("transformers.tokenization_utils").setLevel(logging.ERROR)
 logging.getLogger("transformers.tokenization_utils_base").setLevel(logging.ERROR)
 logging.getLogger("transformers.tokenization_utils_fast").setLevel(logging.ERROR)
 
+val_batch = 8
+number_worker = 2
+val_gen_batch = 1
+is_val_shuffle = False
 
 def base_setting(args):
-    args.epoch = getattr(args, 'epoch', 5) 
     args.seed = getattr(args, "seed", 970903) # random seed
     args.dataset = getattr(args, "dataset", "cnndm") # dataset
     args.smooth = getattr(args, "smooth", 0.06) # label smoothing
     args.grad_norm = getattr(args, "grad_norm", 0) # gradient norm
-    args.scale = getattr(args, "scale", 0.5) # scale of ranking loss
     args.datatype = getattr(args, "datatype", "diverse") # data type
-    args.max_len = getattr(args, "max_len", 120) # max length of summary
     args.report_freq = getattr(args, "report_freq", 100) # report frequency
     args.warmup_steps = getattr(args, "warmup_steps", 20000) # warmup steps
     args.adding = getattr(args, "adding", 0) # used for numerical stability
     args.max_lr = getattr(args, "max_lr", 2e-3) # max learning rate (* 1e-2)
-    args.pretrained = getattr(args, "pretrained", './bart_pho2') # pretrained model path
     args.length_penalty = getattr(args, "length_penalty", 2.0) # length penalty
     args.no_gold = getattr(args, "no_gold", False) # whether to use gold summaries
-    args.max_num = getattr(args, "max_num", 6) # max number of candidate summaries
-    args.eval_interval = getattr(args, "eval_interval", 1000) # evaluation intervals
-    args.num_beams = getattr(args, "num_beams", 4) # number of beams for beam search
-    args.batch_size = getattr(args, 'batch_size', 8) # batch size on one gpu, one step
-    args.total_len = getattr(args, "total_len", 1024) # total length of source article
     args.normalize = getattr(args, "normalize", True) # normalize predicited likelihood
-    args.model_type = getattr(args, "model_type", "vinai/bartpho-word-base") # model type
-    args.gen_min_len = getattr(args, "gen_min_len", 55) # min length of generated summaries
-    args.accumulate_step = getattr(args, "accumulate_step", 8) # accumulate gradients steps
     args.mle_weight = getattr(args, "mle_weight", 0.1) # weight for mle loss on gold summaries
-    args.gen_max_len = getattr(args, "gen_max_len", 140) # max length of generated summaries
     args.score_mode = getattr(args, "score_mode", "log") # use log-likelihood for ranking loss
     args.margin = getattr(args, "margin", 0.001) # margin for ranking loss on candidate summaries
     args.gold_margin = getattr(args, "gold_margin", 0) # margin for ranking loss on gold summaries
@@ -64,6 +55,20 @@ def base_setting(args):
     args.rank_weight = getattr(args, "rank_weight", 10) # weight for ranking loss on candidate summaries
     args.do_sample = getattr(args, "do_sample", True) # whether to generaet summaries during evaluation
     args.is_pegasus = getattr(args, "is_pegasus", False) # whether to use Pegasus as the baseline model
+
+    args.epoch = getattr(args, 'epoch', 5) 
+    args.scale = getattr(args, "scale", 0.5) # scale of ranking loss
+    args.max_len = getattr(args, "max_len", 140) # max length of summary
+    args.max_num = getattr(args, "max_num", 6) # max number of candidate summaries
+    args.num_beams = getattr(args, "num_beams", 4) # number of beams for beam search
+    args.eval_interval = getattr(args, "eval_interval", 1000) # evaluation intervals
+    args.total_len = getattr(args, "total_len", 1024) # total length of source article
+    args.batch_size = getattr(args, 'batch_size', 8) # batch size on one gpu, one step
+    args.pretrained = getattr(args, "pretrained", './bart_pho2') # pretrained model path
+    args.model_type = getattr(args, "model_type", "vinai/bartpho-word-base") # model type
+    args.accumulate_step = getattr(args, "accumulate_step", 8) # accumulate gradients steps
+    args.gen_min_len = getattr(args, "gen_min_len", 45) # min length of generated summaries
+    args.gen_max_len = getattr(args, "gen_max_len", 120) # max length of generated summaries
 
 def evaluation(args):
     # load data
@@ -167,12 +172,15 @@ def evaluation(args):
                             early_stopping=True,
                         )
                         dec = [tokenizer.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=False) for g in summaries]
+                    
                     for hypothesis in dec:
                         hypothesis = hypothesis.replace("\n", " ")
                         fout.write(hypothesis + '\n')
                         fout.flush()
                     slines = []
+                
                 sline = sline.strip()
+                
                 if len(sline) == 0:
                     sline = " "
                 slines.append(sline)
@@ -226,15 +234,18 @@ def test(dataloader, gen_dataloader, model, args, tok, gpuid, do_sample=False):
         _model = model.module
     else:
         _model = model
+    
     cnt = 0
     rouge_scorer = RougeScorer(['rouge1', 'rouge2', 'rougeLsum'], use_stemmer=True)
     rouge1, rouge2, rougeLsum = 0, 0, 0
     mle_loss = 0
+    
     if args.smooth > 0:
         mle_fn = label_smoothing_loss(ignore_index=tok.pad_token_id, epsilon=args.smooth)
     else:
         mle_fn = nn.CrossEntropyLoss(ignore_index=tok.pad_token_id)
     _model.scoring_mode()
+    
     with torch.no_grad():
         # scoring
         for (i, batch) in enumerate(dataloader):
@@ -253,6 +264,7 @@ def test(dataloader, gen_dataloader, model, args, tok, gpuid, do_sample=False):
             if i % 1000 == 0:
                 print(f"test similarity: {similarity[0]}")
             max_ids = similarity.argmax(1)
+            
             for j in range(similarity.shape[0]):
                 cnt += 1
                 sample = samples[j]
@@ -261,6 +273,7 @@ def test(dataloader, gen_dataloader, model, args, tok, gpuid, do_sample=False):
                 rouge1 += score["rouge1"].fmeasure
                 rouge2 += score["rouge2"].fmeasure
                 rougeLsum += score["rougeLsum"].fmeasure
+    
     rouge1 = rouge1 / cnt
     rouge2 = rouge2 / cnt
     rougeLsum = rougeLsum / cnt
@@ -281,11 +294,15 @@ def test(dataloader, gen_dataloader, model, args, tok, gpuid, do_sample=False):
     
     cnt = 0
     sample_rouge1, sample_rouge2, sample_rougeLsum = 0, 0, 0
+    
     if do_sample:
+        
         # generation
         _model.generation_mode()
+        
         def process(x):
             return sent_tokenize(" ".join(word_tokenize(x.strip())))
+        
         with torch.no_grad():
             for (i, batch) in enumerate(gen_dataloader):
                 if args.cuda:
@@ -293,6 +310,7 @@ def test(dataloader, gen_dataloader, model, args, tok, gpuid, do_sample=False):
                 samples = batch["data"]
                 slines = [" ".join(x["article_untok"]) for x in samples]
                 dct = tok.batch_encode_plus(slines, max_length=args.total_len, return_tensors="pt", pad_to_max_length=True, truncation=True)
+                
                 try:
                     summaries = _model.generate(
                         input_ids=dct["input_ids"].to(device),
@@ -300,17 +318,15 @@ def test(dataloader, gen_dataloader, model, args, tok, gpuid, do_sample=False):
                         max_length=args.gen_max_len + 2,  # +2 from original because we start at step=1 and stop before max_length
                         min_length=args.gen_min_len + 1,  # +1 from original because we start at step=1
                         no_repeat_ngram_size=3,
-                        num_beam_groups=4,
-                        num_return_sequences=4,
-                        num_beams=args.num_beams,
-                        length_penalty=args.length_penalty,
-                        early_stopping=True,
+                        num_beam_groups=args.num_beams,num_return_sequences=args.num_beams,
+                        num_beams=args.num_beams,length_penalty=args.length_penalty,early_stopping=True,
                     )
                 except:
                     continue
                     print("continute")
 
                 dec = [tok.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=False) for g in summaries]
+                
                 for (hypothesis, x) in zip(dec, samples):
                     hypothesis = hypothesis.replace("\n", " ")
                     ref = " ".join(x["abstract_untok"])
@@ -321,6 +337,7 @@ def test(dataloader, gen_dataloader, model, args, tok, gpuid, do_sample=False):
                     sample_rouge2 += score["rouge2"].fmeasure
                     sample_rougeLsum += score["rougeLsum"].fmeasure
                     cnt += 1
+    
         _model.scoring_mode()
         sample_rouge1 = sample_rouge1 / cnt
         sample_rouge2 = sample_rouge2 / cnt
@@ -355,6 +372,7 @@ def run(rank, args):
         xsum_setting(args)
     else:
         base_setting(args)
+    
     # task initialization
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
@@ -364,35 +382,41 @@ def run(rank, args):
     is_master = rank == 0
     is_mp = len(args.gpuid) > 1
     world_size = len(args.gpuid)
+    
     if is_master:
         id = len(os.listdir("./cache"))
         recorder = Recorder(id, args.log)
+    
     # build dataloader
     if args.is_pegasus:
         tok = PegasusTokenizer.from_pretrained(args.model_type)
     else:
         tok = AutoTokenizer.from_pretrained(args.model_type)
+    
     collate_fn = partial(collate_mp_brio, pad_token_id=tok.pad_token_id, is_test=False)
     collate_fn_val = partial(collate_mp_brio, pad_token_id=tok.pad_token_id, is_test=True)
     train_set = BrioDataset(f"./{args.dataset}/{args.datatype}/train", args.model_type, max_len=args.max_len, max_num=args.max_num, total_len=args.total_len, is_pegasus=args.is_pegasus)
-    val_set = BrioDataset(f"./{args.dataset}/{args.datatype}/val", args.model_type, is_test=True, max_len=1024, is_sorted=False, max_num=args.max_num, total_len=args.total_len, is_pegasus=args.is_pegasus)
+    val_set = BrioDataset(f"./{args.dataset}/{args.datatype}/val", args.model_type, is_test=True, max_len=args.max_len, is_sorted=False, max_num=args.max_num, total_len=args.total_len, is_pegasus=args.is_pegasus)
+    
     if is_mp:
         train_sampler = torch.utils.data.distributed.DistributedSampler(
     	 train_set, num_replicas=world_size, rank=rank, shuffle=True)
-        dataloader = DataLoader(train_set, batch_size=args.batch_size, shuffle=False, num_workers=4, collate_fn=collate_fn, sampler=train_sampler)
+        dataloader = DataLoader(train_set, batch_size=args.batch_size, shuffle=False, num_workers=number_worker, collate_fn=collate_fn, sampler=train_sampler)
         val_sampler = torch.utils.data.distributed.DistributedSampler(
     	 val_set, num_replicas=world_size, rank=rank)
-        val_dataloader = DataLoader(val_set, batch_size=1, shuffle=False, num_workers=4, collate_fn=collate_fn_val, sampler=val_sampler)
-        val_gen_dataloader = DataLoader(val_set, batch_size=8, shuffle=False, num_workers=4, collate_fn=collate_fn_val, sampler=val_sampler)
+        val_dataloader = DataLoader(val_set, batch_size=val_batch, shuffle=False, num_workers=number_worker, collate_fn=collate_fn_val, sampler=val_sampler)
+        val_gen_dataloader = DataLoader(val_set, batch_size=val_gen_batch, shuffle=False, num_workers=number_worker, collate_fn=collate_fn_val, sampler=val_sampler)
     else:
-        dataloader = DataLoader(train_set, batch_size=args.batch_size, shuffle=False, num_workers=4, collate_fn=collate_fn)
-        val_dataloader = DataLoader(val_set, batch_size=1, shuffle=False, num_workers=4, collate_fn=collate_fn_val)
-        val_gen_dataloader = DataLoader(val_set, batch_size=8, shuffle=False, num_workers=4, collate_fn=collate_fn_val)
+        dataloader = DataLoader(train_set, batch_size=args.batch_size, shuffle=False, num_workers=number_worker, collate_fn=collate_fn)
+        val_dataloader = DataLoader(val_set, batch_size=val_gen_batch, shuffle=is_val_shuffle, num_workers=number_worker, collate_fn=collate_fn_val)
+        val_gen_dataloader = DataLoader(val_set, batch_size=val_gen_batch, shuffle=is_val_shuffle, num_workers=number_worker, collate_fn=collate_fn_val)
     # build models
     model_path = args.pretrained if args.pretrained is not None else args.model_type
     model = BRIO(model_path, tok.pad_token_id, is_pegasus=args.is_pegasus)
+    
     if len(args.model_pt) > 0:
         model.load_state_dict(torch.load(os.path.join("./cache", args.model_pt), map_location=f'cuda:{gpuid}'))
+    
     if args.cuda:
         if is_mp:
             # Using DDP
@@ -401,6 +425,7 @@ def run(rank, args):
         else:
             model = model.cuda()
     model.train()
+    
     # set the model to scoring mode
     if is_mp:
         model.module.scoring_mode()
@@ -410,19 +435,15 @@ def run(rank, args):
         mle_fn = label_smoothing_loss(ignore_index=tok.pad_token_id, epsilon=args.smooth)
     else:
         mle_fn = nn.CrossEntropyLoss(ignore_index=tok.pad_token_id)
-    #DEFAULT: s_optimizer = optim.Adam(model.parameters())
     
+    #DEFAULT: s_optimizer = optim.Adam(model.parameters())
     s_optimizer = Adafactor(	
         model.parameters(),	
         lr=1e-5,	
         eps=(1e-30, 1e-3),	
-        clip_threshold=1.0,	
-        decay_rate=-0.8,	
-        beta1=None,	
-        weight_decay=0.01,	
-        relative_step=False,	
-        scale_parameter=False,	
-        warmup_init=False,	
+        clip_threshold=1.0,
+        decay_rate=-0.8,beta1=None,	weight_decay=0.01,
+        relative_step=False,scale_parameter=False,warmup_init=False,	
     )
 
     if is_master:
@@ -437,6 +458,7 @@ def run(rank, args):
             id = torch.zeros(1).to(gpuid)
         dist.all_reduce(id, op=dist.reduce_op.SUM)
         id = int(id.item())
+    
     # define evaluation function
     if args.dataset == "xsum":
         def eval_fn(rouge1, rouge2, rougeLsum):
@@ -444,6 +466,7 @@ def run(rank, args):
     else:
         def eval_fn(rouge1, rouge2, rougeLsum):
             return 1 - (rouge1 * rouge2 + rougeLsum) / 3
+    
     # start training
     for epoch in range(args.epoch):
         s_optimizer.zero_grad()
@@ -524,6 +547,7 @@ def run(rank, args):
                     recorder.print("val ranking loss: %.6f"%(loss))
                     recorder.print("val ranking rouge1: %.6f, rouge2: %.6f, rougeLsum: %.6f"
                     %(result["rouge1"], result["rouge2"], result["rougeLsum"]))
+                
                 # evaluate the model as a generator
                 if args.do_sample:
                     mle_loss = eval_fn(result["sample_rouge1"], result["sample_rouge2"], result["sample_rougeLsum"])
