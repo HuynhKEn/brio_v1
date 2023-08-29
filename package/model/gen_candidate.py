@@ -13,10 +13,10 @@ def generate_summaries_cnndm(args):
     mname = "./bartpho2"
     tokenizer = AutoTokenizer.from_pretrained(mname)
     #model = BartForConditionalGeneration.from_pretrained(mname).to(device)
-    #model = MBartForConditionalGeneration.from_pretrained(mname).to(device)
+    model = MBartForConditionalGeneration.from_pretrained(mname).to(device)
     model = BRIO("./bartpho2", tokenizer.pad_token_id, False)
-    model.load_state_dict(torch.load(os.path.join("./cache", "23-08-03-0/model_generation.bin"), map_location=f'cuda:{args.gpuid[0]}')) #Uncomment this line when you already trained a BRIO model
-    model.eval();  model.generation_mode()
+    #model.load_state_dict(torch.load(os.path.join("./cache", "23-08-03-0/model_generation.bin"), map_location=f'cuda:{args.gpuid[0]}')); model.generation_mode() #Uncomment this line when you already trained a BRIO model
+    model.eval();  
     max_length = 140; min_length = 55; count = 1; bsz = 1
     with open(args.src_dir, encoding="utf-8") as source, open(args.tgt_dir, 'w', encoding="utf-8") as fout:
         sline = source.readline().strip().lower()

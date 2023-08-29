@@ -64,7 +64,7 @@ def base_setting(args):
     args.eval_interval = getattr(args, "eval_interval", 1000) # evaluation intervals
     args.total_len = getattr(args, "total_len", 1024) # total length of source article
     args.batch_size = getattr(args, 'batch_size', 8) # batch size on one gpu, one step
-    args.pretrained = getattr(args, "pretrained", './bart_pho2') # pretrained model path
+    args.pretrained = getattr(args, "pretrained", './bartpho2') # pretrained model path
     args.model_type = getattr(args, "model_type", "vinai/bartpho-word-base") # model type
     args.accumulate_step = getattr(args, "accumulate_step", 8) # accumulate gradients steps
     args.gen_min_len = getattr(args, "gen_min_len", 45) # min length of generated summaries
@@ -404,7 +404,7 @@ def run(rank, args):
         dataloader = DataLoader(train_set, batch_size=args.batch_size, shuffle=False, num_workers=number_worker, collate_fn=collate_fn, sampler=train_sampler)
         val_sampler = torch.utils.data.distributed.DistributedSampler(
     	 val_set, num_replicas=world_size, rank=rank)
-        val_dataloader = DataLoader(val_set, batch_size=val_batch, shuffle=False, num_workers=number_worker, collate_fn=collate_fn_val, sampler=val_sampler)
+        val_dataloader = DataLoader(val_set, batch_size=val_gen_batch, shuffle=False, num_workers=number_worker, collate_fn=collate_fn_val, sampler=val_sampler)
         val_gen_dataloader = DataLoader(val_set, batch_size=val_gen_batch, shuffle=False, num_workers=number_worker, collate_fn=collate_fn_val, sampler=val_sampler)
     else:
         dataloader = DataLoader(train_set, batch_size=args.batch_size, shuffle=False, num_workers=number_worker, collate_fn=collate_fn)
