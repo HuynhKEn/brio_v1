@@ -62,3 +62,5 @@ def run(src_dir, des_path_dir, number_random, train_ratio, val_ratio):
 
     # Lấy ngẫu nhiên các tệp và sao chép chúng vào thư mục đích
     get_random_files(source_directory, destination_directory, num_files, train_ratio, val_ratio)
+
+get_number_radom_file("C:/Users/Admin/Desktop/brio_v1/package/source/original_root/train","C:/Users/Admin/Desktop/brio_v1/package/source/original_root/val", 3000)

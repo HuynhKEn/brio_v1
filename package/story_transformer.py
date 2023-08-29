@@ -40,7 +40,7 @@ def extract_content4(directory, out_dir):
             lines = infile.read()
             contents = lines.strip().split('<<space>>')
             if len(contents) >= 4:
-                outfile.write(contents[3] + '\n@highlight\n' +  contents[2] + '\n')
+                outfile.write(clean_document(contents[3]) + '\n@highlight\n' +  clean_document(contents[2]) + '\n')
 
 def extract_csv(directory, out_file_csv):
     file_paths = glob.glob(os.path.join(directory, '*'))
@@ -79,7 +79,13 @@ def clean_document(content):
     contents_parsed = content
     contents_parsed = contents_parsed.replace('\n', '. ').replace("browser not support iframe ", "").replace("\xa0", "")
     contents_parsed = contents_parsed.strip()
+
+    # Thay thế nhiều spaces bằng 1 space
     contents_parsed = re.sub(r"\s+", r" ", contents_parsed).strip()
+    # Chuẩn hóa email về một thực thể duy nhất
+
+    email_pattern = r'\S+@\S+\.\S+'
+    contents_parsed = re.sub(email_pattern, '__EMAIL__', contents_parsed)
     return contents_parsed
 
 def count_rows_in_csv(file_path):
@@ -92,8 +98,8 @@ def count_rows_in_csv(file_path):
   except FileNotFoundError:
     return 0
 
-extract_content4(r'C:\Users\maxco\Desktop\BRIO_DATA\ex_1', r'C:\Users\maxco\Desktop\BRIO_RENEW\package\source\data_root')
+extract_content4('G:/NLP/DataSummary/300k', r'G:\NLP\brio_v1\source')
 #extract_csv(r'C:\Users\maxco\Desktop\BRIO_DATA\ex_1\ex', r'C:\Users\maxco\Desktop\BRIO_RENEW\package\source\csv_root\data_1.csv')
 
-row_count = count_rows_in_csv(r'C:\Users\maxco\Desktop\BRIO_RENEW\package\source\csv_root\data_1.csv')
-print("Số dòng dữ liệu trong tệp CSV là:", row_count)
+#row_count = count_rows_in_csv(r'C:\Users\maxco\Desktop\BRIO_RENEW\package\source\csv_root\data_1.csv')
+#print("Số dòng dữ liệu trong tệp CSV là:", row_count)

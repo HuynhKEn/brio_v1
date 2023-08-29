@@ -40,7 +40,7 @@ class Preprocess:
 
 
 
-    def split_dataset(self, dir_src, train_ratio=0.7, val_ratio=0.2):
+    def split_dataset(self, dir_src, train_ratio=0.9, val_ratio=0.08):
         """
             This function splits total raw data into train, val, and test sets.
             Warning: used for the original dataset.

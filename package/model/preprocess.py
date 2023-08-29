@@ -72,6 +72,7 @@ def build_diverse_beam(input):
     abstract_untok = sent_tokenize(tgt_line_untok)
     article_untok = sent_tokenize(src_line_untok)
     candidates_untok = [(cands_untok[i], candidates[i][1]) for i in range(len(candidates))]
+    
     output = {
         "article": article, 
         "abstract": abstract,
@@ -80,8 +81,9 @@ def build_diverse_beam(input):
         "abstract_untok": abstract_untok,
         "candidates_untok": candidates_untok,
         }
+    
     with open(tgt_dir, "w",encoding="utf-8") as f:
-        json.dump(output, f,ensure_ascii=False )
+        json.dump(output, f, ensure_ascii=False)
 
 
 def make_diverse_beam_data(args):
