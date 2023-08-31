@@ -1,0 +1,3 @@
+pip install -q transformers sentencepiece
+from transformers import pipeline # for using model in huggingface
+corrector = pipeline("text2text-generation", model="bmd1905/vietnamese-correction")
